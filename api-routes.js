@@ -1,54 +1,75 @@
 const router = require('express').Router()
 const db = require('./db')
 
+
 router
   .route('/inventory')
-  // TODO: Create a GET route that returns a list of everything in the inventory table
-  // The response should look like:
-  // [
-  //   {
-  //     "id": 1,
-  //     "name": "Stratocaster",
-  //     "image": "strat.jpg",
-  //     "description": "One of the most iconic electric guitars ever made.",
-  //     "price": 599.99,
-  //     "quantity": 3
-  //   },
-  //   {...},
-  //   {...}, etc
-  // ]
 
-  // TODO: Create a POST route that inserts inventory items
-  // This route will accept price, quantity, name, image, and description as JSON
-  // in the request body.
-  // It should return a 204 status code
+  .get(async (req, res) => {
+    try {
+      const [items] = await db.query('SELECT * FROM inventory')
+      res.json(items)
+    } catch (error) {
+      res.status(500).send('Error retrieving inventory')
+    }
+  })
+
+  .post(async (req, res) => {
+    const { name, image, description, price, quantity } = req.body
+    if (!name || !image || !description || !price || !quantity) {
+      return res.status(400).send('All fields are required')
+    }
+    try {
+      await db.query(
+        'INSERT INTO inventory (name, image, description, price, quantity) VALUES (?, ?, ?, ?, ?)',
+        [name, image, description, price, quantity]
+      )
+      res.status(204).end()
+    } catch (error) {
+      res.status(500).send('Error adding inventory item')
+    }
+  })
 
 router
   .route('/inventory/:id')
-  // TODO: Write a GET route that returns a single item from the inventory
-  // that matches the id from the route parameter
-  // Should return 404 if no item is found
-  // The response should look like:
-  // {
-  //   "id": 1,
-  //   "name": "Stratocaster",
-  //   "image": "strat.jpg",
-  //   "description": "One of the most iconic electric guitars ever made.",
-  //   "price": 599.99,
-  //   "quantity": 3
-  // }
 
-  // TODO: Create a PUT route that updates the inventory table based on the id
-  // in the route parameter.
-  // This route should accept price, quantity, name, description, and image
-  // in the request body.
-  // If no item is found, return a 404 status.
-  // If an item is modified, return a 204 status code.
+  .get(async (req, res) => {
+    const { id } = req.params
+    try {
+      const [[item]] = await db.query('SELECT * FROM inventory WHERE id = ?', [id])
+      if (!item) return res.status(404).send('Item not found')
+      res.json(item)
+    } catch (error) {
+      res.status(500).send('Error retrieving inventory item')
+    }
+  })
 
-  // TODO: Create a DELETE route that deletes an item from the inventory table
-  // based on the id in the route parameter.
-  // If no item is found, return a 404 status.
-  // If an item is deleted, return a 204 status code.
+  .put(async (req, res) => {
+    const { id } = req.params
+    const { name, image, description, price, quantity } = req.body
+    try {
+      const [result] = await db.query(
+        'UPDATE inventory SET name=?, image=?, description=?, price=?, quantity=? WHERE id=?',
+        [name, image, description, price, quantity, id]
+      )
+      if (result.affectedRows === 0) return res.status(404).send('Item not found')
+      res.status(204).end()
+    } catch (error) {
+      res.status(500).send('Error updating inventory item')
+    }
+  })
+
+  .delete(async (req, res) => {
+    const { id } = req.params
+    try {
+      const [result] = await db.query('DELETE FROM inventory WHERE id = ?', [id])
+      if (result.affectedRows === 0) return res.status(404).send('Item not found')
+      res.status(204).end()
+    } catch (error) {
+      res.status(500).send('Error deleting inventory item')
+    }
+  })
+
 
 router
   .route('/cart')
@@ -72,8 +93,6 @@ router
   })
   .post(async (req, res) => {
     const {inventoryId, quantity} = req.body
-    // Using a LEFT JOIN ensures that we always return an existing
-    // inventory item row regardless of whether that item is in the cart.
     const [[item]] = await db.query(
       `SELECT
         inventory.id,
@@ -104,7 +123,7 @@ router
     res.status(204).end()
   })
   .delete(async (req, res) => {
-    // Deletes the entire cart table
+ 
     await db.query('DELETE FROM cart')
     res.status(204).end()
   })
@@ -119,7 +138,7 @@ router
         FROM cart
         INNER JOIN inventory on cart.inventory_id=inventory.id
         WHERE cart.id=?`,
-        [req.params.cartId]
+      [req.params.cartId]
     )
     if (!cartItem)
       return res.status(404).send('Not found')
@@ -128,8 +147,8 @@ router
       return res.status(409).send('Not enough inventory')
     if (quantity > 0) {
       await db.query(
-        `UPDATE cart SET quantity=? WHERE id=?`
-        ,[quantity, req.params.cartId]
+        `UPDATE cart SET quantity=? WHERE id=?`,
+        [quantity, req.params.cartId]
       )
     } else {
       await db.query(
