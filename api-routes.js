@@ -8,6 +8,9 @@ router
   .get(async (req, res) => {
     try {
       const [items] = await db.query('SELECT * FROM inventory')
+      if (items.length === 0) {
+        return res.status(404).json({ message: 'No items found' })
+      }
       res.json(items)
     } catch (error) {
       res.status(500).send('Error retrieving inventory')
@@ -17,7 +20,7 @@ router
   .post(async (req, res) => {
     const { name, image, description, price, quantity } = req.body
     if (!name || !image || !description || !price || !quantity) {
-      return res.status(400).send('All fields are required')
+      return res.status(400).json({ message: 'All fields are required' })
     }
     try {
       await db.query(
@@ -37,7 +40,7 @@ router
     const { id } = req.params
     try {
       const [[item]] = await db.query('SELECT * FROM inventory WHERE id = ?', [id])
-      if (!item) return res.status(404).send('Item not found')
+      if (!item) return res.status(404).json({ message: 'Item not found' })
       res.json(item)
     } catch (error) {
       res.status(500).send('Error retrieving inventory item')
@@ -47,12 +50,15 @@ router
   .put(async (req, res) => {
     const { id } = req.params
     const { name, image, description, price, quantity } = req.body
+    if (!name || !image || !description || !price || !quantity) {
+      return res.status(400).json({ message: 'All fields are required' })
+    }
     try {
       const [result] = await db.query(
         'UPDATE inventory SET name=?, image=?, description=?, price=?, quantity=? WHERE id=?',
         [name, image, description, price, quantity, id]
       )
-      if (result.affectedRows === 0) return res.status(404).send('Item not found')
+      if (result.affectedRows === 0) return res.status(404).json({ message: 'Item not found' })
       res.status(204).end()
     } catch (error) {
       res.status(500).send('Error updating inventory item')
@@ -63,7 +69,7 @@ router
     const { id } = req.params
     try {
       const [result] = await db.query('DELETE FROM inventory WHERE id = ?', [id])
-      if (result.affectedRows === 0) return res.status(404).send('Item not found')
+      if (result.affectedRows === 0) return res.status(404).json({ message: 'Item not found' })
       res.status(204).end()
     } catch (error) {
       res.status(500).send('Error deleting inventory item')
@@ -105,10 +111,10 @@ router
       WHERE inventory.id=?;`,
       [inventoryId]
     )
-    if (!item) return res.status(404).send('Item not found')
+    if (!item) return res.status(404).json({ message: 'Item not found' })
     const {cartId, inventoryQuantity} = item
     if (quantity > inventoryQuantity)
-      return res.status(409).send('Not enough inventory')
+      return res.status(409).json({ message: 'Not enough inventory' })
     if (cartId) {
       await db.query(
         `UPDATE cart SET quantity=quantity+? WHERE inventory_id=?`,
@@ -122,8 +128,7 @@ router
     }
     res.status(204).end()
   })
-  .delete(async (req, res) => {
- 
+  .delete(async (req, res) => {   
     await db.query('DELETE FROM cart')
     res.status(204).end()
   })
@@ -141,10 +146,10 @@ router
       [req.params.cartId]
     )
     if (!cartItem)
-      return res.status(404).send('Not found')
+      return res.status(404).json({ message: 'Cart item not found' })
     const {inventoryQuantity} = cartItem
     if (quantity > inventoryQuantity)
-      return res.status(409).send('Not enough inventory')
+      return res.status(409).json({ message: 'Not enough inventory' })
     if (quantity > 0) {
       await db.query(
         `UPDATE cart SET quantity=? WHERE id=?`,
@@ -166,7 +171,8 @@ router
     if (affectedRows === 1)
       res.status(204).end()
     else
-      res.status(404).send('Cart item not found')
+      res.status(404).json({ message: 'Cart item not found' })
   })
 
 module.exports = router
+
